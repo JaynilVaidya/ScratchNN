@@ -12,8 +12,17 @@ class Encoder(nn.Module):
         self.rnn = simpleRNN(embed_dim, hidden_size, num_layers)
         
     def forward(self, input):
-        embeddings = self.embed(input) # seq_len, batch_size
+        """
+        Args:
+            input (tensor): (seq, batch_size)
+
+        Returns:
+            output (tensor): (seq, batch_size, hidden_size)
+            hidden (tensor): (num_layers, batch_size, hidden_size)
+        """
+        embeddings = self.embed(input) # seq_len, batch_size, embed_dim
         output, hidden = self.rnn(embeddings)
+        #print("input size: ", input.size(), "output size: ", output.size(), "hidden size", hidden.size())
         return output, hidden 
     
 class Decoder(nn.Module):
@@ -25,9 +34,14 @@ class Decoder(nn.Module):
         self.fc = nn.Linear(hidden_size, output_size)
         
     def forward(self, target, context):
-        embeddings = self.embed(target)
-        output, hidden = self.rnn(embeddings, h0=context)
-        pred = self.fc(output)
+        """
+        Args:
+            target (tensor): (seq, batch_size)
+            context (tensor): (batch_size, hidden_size)
+        """
+        embeddings = self.embed(target) # -> (seq, batch_size, embed_dim)
+        output, hidden = self.rnn(embeddings, h0=context) 
+        pred = self.fc(output) # (1 , batch_size, output_size)
         return pred, hidden
 
 class Seq2Seq(nn.Module):
@@ -38,8 +52,7 @@ class Seq2Seq(nn.Module):
         self.decoder = dec
         
     def forward(self, input, target, teacher_force_ratio = 0.5):
-        """_summary_
-
+        """
         Args:
             input (tensor): shape (seq_len, batch)
             target (tensor): shape (seq_len, batch)
@@ -52,7 +65,7 @@ class Seq2Seq(nn.Module):
         
         for t in range(trglen):
             pred, hidden = self.decoder(input_tok.unsqueeze(0), hidden) ## directly using output(context) as h0 since RNNencoder archi == RNNdecoder archi else extra mapping layer 
-            top1 = pred.argmax(2).squeeze(0)
+            top1 = pred.argmax(2).squeeze(0) # -> (batch_size,)
             
             teacher_force = random.random() < teacher_force_ratio
             input_tok = target[t] if teacher_force else top1

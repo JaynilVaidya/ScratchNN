@@ -25,12 +25,12 @@ class RNN(nn.Module):
     def forward(self, x, h0=None):
         """
         Args:
-            x (tensor): shape (seq_len, batch, embedding_dim) ## since seq_len as rows because timestamp corresponds to sequence 
-            h0 (tensor, optional): optional initial hidden state
+            x (tensor): shape (seq_len, batch_size, embedding_dim) ## since seq_len as rows because timestamp corresponds to sequence 
+            h0 (tensor, optional): (num_layers, batch_size, hidden_size)
 
         Returns:
-            outputs: Tensor (seq_len, batch, hidden_size) ## acts as a context-vector for encoder-decoder
-            h_n: final hidden states (num_layers, batch, hidden_size)
+            outputs: Tensor (seq_len, batch_size, hidden_size) ## acts as a context-vector for encoder-decoder
+            h_n: final hidden states (num_layers, batch_size, hidden_size)
         """
         seq_len, batch_size, vocab_size =  x.size()
         if h0==None: h0 = torch.stack([torch.zeros((batch_size, self.hidden_size)) for i in range(self.num_layers)]) # numlayers, layersize 
