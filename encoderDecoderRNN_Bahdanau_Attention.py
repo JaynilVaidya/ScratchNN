@@ -5,16 +5,18 @@ from simpleRNN import RNN
 import random
 
 class Attention(nn.Module):
+    """
+    Additive Attention
+    """
     def __init__(self, attention_hidden):
         super().__init__()
         
         self.Wk = nn.LazyLinear(attention_hidden)
         self.Wq = nn.LazyLinear(attention_hidden)
         self.Wv = nn.LazyLinear(1)
-        self.tanh = nn.Tanh()
+        self.tanh = nn.Tanh()        
         
-        
-    def attention(self, key, value, query):
+    def forward(self, key, value, query):
         """
         Args:
             key (tensor): (seq_len, batch_size, hidden_size)
@@ -30,7 +32,7 @@ class Attention(nn.Module):
         
         score = self.tanh(K + Q) # (same as K)
         alpha = self.Wv(score) # -> (seq_len, batch_size, 1) 
-        alpha = torch.permute(alpha, (1,2,0)) # -> ( batch_size, 1, seq_len)
+        alpha = torch.softmax(alpha.permute((1,2,0)), dim=2) # -> ( batch_size, 1, seq_len)
         
         result = torch.bmm(alpha, V) # -> (batch_size, 1, hidden_size)
         return result
@@ -61,7 +63,7 @@ class AttentionDecoder(nn.Module):
         self.embed = nn.Embedding(input_size, embed_dim)
         self.rnn = RNN(embed_dim + hidden_size, hidden_size, num_layers)
         self.fc = nn.Linear(hidden_size, output_size)
-        self.attention = Attention(attention_hidden).attention
+        self.attention = Attention(attention_hidden)
         self.teacher_force_ratio = teacher_force_ratio
         
     def forward(self, x, target):
