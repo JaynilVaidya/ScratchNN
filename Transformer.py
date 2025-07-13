@@ -20,7 +20,7 @@ class PositionalEmbedding(nn.Module):
 
 
 class Encoder(nn.Module):
-    def __init__(self, num_layers, MHA_hidden, MHA_num_heads, input_size, embed_dim, max_seq_len):
+    def __init__(self, num_layers, MHA_num_heads, input_size, embed_dim, max_seq_len):
         super().__init__()
         
         self.num_layers = num_layers
@@ -28,13 +28,14 @@ class Encoder(nn.Module):
         self.PE = PositionalEmbedding(max_seq_len, embed_dim)
         self.embed = nn.Embedding(input_size, embed_dim)
         
-        self.MHA = nn.ModuleList([MultiHeadAttention(MHA_num_heads, MHA_hidden, embed_dim) for i in range(num_layers)])
+        self.MHA = nn.ModuleList([MultiHeadAttention(MHA_num_heads, embed_dim) for i in range(num_layers)])
         self.layerNorm1 = nn.ModuleList([nn.LayerNorm(embed_dim) for i in range(num_layers)])
         self.layerNorm2 = nn.ModuleList([nn.LayerNorm(embed_dim) for i in range(num_layers)])
         self.pfnn = nn.ModuleList([nn.Sequential(
             nn.Linear(embed_dim, 4*embed_dim),
             nn.ReLU(),
             nn.Linear(4*embed_dim, embed_dim),
+            nn.Dropout(0.2)
         ) for i in range(num_layers)])
     
     def forward(self, X):
@@ -58,12 +59,12 @@ class Encoder(nn.Module):
         
         
 class Decoder(nn.Module):
-    def __init__(self, num_layers, MHA_hidden, MHA_num_heads, input_size, embed_dim, output_dim, max_seq_len):
+    def __init__(self, num_layers, MHA_num_heads, input_size, embed_dim, output_dim, max_seq_len):
         super().__init__()
         
         self.num_layers = num_layers
-        self.MHA = nn.ModuleList([MultiHeadAttention(MHA_num_heads, MHA_hidden, embed_dim) for i in range(num_layers)])
-        self.crossMHA = nn.ModuleList([MultiHeadAttention(MHA_num_heads, MHA_hidden, embed_dim) for i in range(num_layers)])
+        self.MHA = nn.ModuleList([MultiHeadAttention(MHA_num_heads, embed_dim) for i in range(num_layers)])
+        self.crossMHA = nn.ModuleList([MultiHeadAttention(MHA_num_heads, embed_dim) for i in range(num_layers)])
         self.PE = PositionalEmbedding(max_seq_len, embed_dim)
         
         self.embed = nn.Embedding(input_size, embed_dim)
@@ -101,35 +102,34 @@ class Decoder(nn.Module):
         return out
     
 
+if __name__=="__main__":
+    MHA_num_heads = 4
+    input_size = 5000
+    embed_dim = 256
+    seq_len = 24
+    max_seq_len = 128
+    batch_size = 8
+    ENC_NUM_LAYERS = 3
+    DEC_NUM_LAYERS = 2
 
-MHA_hidden = 256
-MHA_num_heads = 3
-input_size = 5000
-embed_dim = 256
-seq_len = 24
-max_seq_len = 128
-batch_size = 8
-ENC_NUM_LAYERS = 3
-DEC_NUM_LAYERS = 2
+    encoder = Encoder(ENC_NUM_LAYERS, MHA_num_heads, input_size, embed_dim, max_seq_len)
+    decoder = Decoder(DEC_NUM_LAYERS, MHA_num_heads, input_size, embed_dim, input_size, max_seq_len)
 
-encoder = Encoder(ENC_NUM_LAYERS, MHA_hidden, MHA_num_heads, input_size, embed_dim, max_seq_len)
-decoder = Decoder(DEC_NUM_LAYERS, MHA_hidden, MHA_num_heads, input_size, embed_dim, input_size, max_seq_len)
+    input_text = torch.randint(0, 5000, (batch_size, seq_len))
+    num_token_gen = 100
 
-input_text = torch.randint(0, 5000, (batch_size, seq_len))
-num_token_gen = 100
+    enc_output = encoder(input_text)
+    print("Enc output", enc_output.size())
+    output_tok = torch.zeros((batch_size, 1), dtype=torch.int) # assume 0 is [BOS]
+    all_outputs = output_tok
+    preds=output_tok
 
-enc_output = encoder(input_text)
-print("Enc output", enc_output.size())
-output_tok = torch.zeros((batch_size, 1), dtype=torch.int) # assume 0 is [BOS]
-all_outputs = output_tok
-preds=output_tok
+    for i in range(num_token_gen):
+        dec_output = decoder(preds, enc_output) # -> (batch_size, seq, output_dim)
+        output_tok = dec_output[:,-1,:].argmax(-1, keepdim = True) # -> (batch_size, 1)
+        preds = torch.cat([preds, output_tok], dim=1)   
 
-for i in range(num_token_gen):
-    dec_output = decoder(preds, enc_output) # -> (batch_size, seq, output_dim)
-    output_tok = dec_output[:,-1,:].argmax(-1, keepdim = True) # -> (batch_size, 1)
-    preds = torch.cat([preds, output_tok], dim=1)   
-
-print("Preds: ",preds.size())
+    print("Preds: ",preds.size())
 
 
 
